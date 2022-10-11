@@ -362,9 +362,6 @@ foreach (Event in RacePendingEvents) {
 		CarRank::ThrottleUpdate(CarRank::C_SortCriteria_CurrentRace);
 		if (Event.Player != Null) {
 
-			
-			
-
 			if (Event.IsEndRace) {
 				Scores::UpdatePlayerBestRaceIfBetter(Event.Player);
 				Scores::UpdatePlayerBestLapIfBetter(Event.Player);
@@ -378,6 +375,27 @@ foreach (Event in RacePendingEvents) {
 			}
 			if (Event.IsEndLap) {
 				Scores::UpdatePlayerBestLapIfBetter(Event.Player);
+			}
+			//Race::SortScores(Race::C_Sort_BestRaceCheckpointsProgress);
+			declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
+			declare pos = 1;			
+			Race::SortScores(Race::C_Sort_BestRaceCheckpointsProgress);
+			foreach(Score in Scores){
+				if(Score != Null){
+					declare AccountId = Score.User.Login;
+					Log::Log("accountid "^AccountId);
+					if(Server_MatchInfo.PlayerStatus[AccountId] == 1){
+						declare Playerfs <=> GetPlayer(Score.User.Login);
+						if(pos > Server_MatchInfo.MinAlivePos[AccountId]){
+							Log::Log("if "^pos);
+							Playerfs.Dossard_Color = <0.7, 0., 0.>;
+						}else{
+							Log::Log("else "^pos);
+							Playerfs.Dossard_Color = Race::C_DossardColor_Default;						
+						}
+						pos += 1;
+					}					
+				}				
 			}
 		}	
 
