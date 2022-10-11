@@ -119,6 +119,7 @@ Server_MatchInfo.PlayerStatus.clear();
 Server_MatchInfo.CanDisPlayerPlay.clear();
 Server_MatchInfo.PlayerRanks.clear();
 Server_MatchInfo.MinAlivePos.clear();
+Server_MatchInfo.CastersLogins.clear();
 Server_MatchInfo.FirstRoundOver = False;
 Server_MatchInfo.CastersLogins = ConvertCastersLogin(S_CastersLogins);
 ***
@@ -154,21 +155,25 @@ foreach (Event in PendingEvents) {
 			StateMgr::InitializePlayer(Event.Player);
 			CarRank::InitializePlayer(Event.Player);
 			declare Text AccountId = Event.Player.User.Login;
-			if(!Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){
+			if(!Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){ //check if the player was already register
 				Server_MatchInfo.PlayerIsOnServer.add(AccountId);
 			}
-			if(Server_MatchInfo.CastersLogins.exists(AccountId)){
+			if(Server_MatchInfo.CastersLogins.exists(AccountId)){ //check if the player is a caster
 				Server_MatchInfo.PlayerStatus[AccountId] = -1;
 				ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
 			}else{
-				if(Event.Player != Null && !Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)){
+				if(Event.Player != Null && !Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)){ 
 					if(Server_MatchInfo.FirstRoundOver){
-						Server_MatchInfo.PlayerStatus[AccountId] = -1;
+						Server_MatchInfo.PlayerStatus[AccountId] = 0;
 						ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
+						Log::Log("PlayerStatus "^Server_MatchInfo.PlayerStatus[AccountId]);
 						
 					}else{
 						if(!Server_MatchInfo.PlayerStatus.existskey(AccountId)){
 							Server_MatchInfo.PlayerStatus[AccountId] = 1;
+							Log::Log("PlayerStatus "^Server_MatchInfo.PlayerStatus[AccountId]);
+							Log::Log("AccountID"^AccountId);
+							Log::Log("WebService"^Event.Player.User.WebServicesUserId);
 						}	
 					Scores::SetPlayerMatchPoints(Event.Player.Score, S_StartPoint); 
 					}
@@ -248,7 +253,6 @@ declare Boolean Map_Skipped;
 ***
 Log::Log("StartMap");
 declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
-//Server_MatchInfo = K_MatchInfo {};
 
 Scores::EnablePlayerNegativePoints(True,True,True); 
 
@@ -259,7 +263,6 @@ foreach (Score in Scores) {
 	if(!Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){
 		//declare AccountId = Score.User.WebServicesUserId;	
 		Server_MatchInfo.PlayerIsOnServer.add(AccountId); //Initialize the list of present player on the server
-		Log::Log("Player Is On Server SM: "^Server_MatchInfo.PlayerIsOnServer);
 	}
 	if(Server_MatchInfo.CastersLogins.exists(AccountId)){
 		Server_MatchInfo.PlayerStatus[AccountId] = -1;
@@ -268,7 +271,6 @@ foreach (Score in Scores) {
 	}else{
 		if(!Server_MatchInfo.PlayerStatus.existskey(AccountId)){
 			Server_MatchInfo.PlayerStatus[AccountId] = 1; //Intinialize all people to player
-			Log::Log("Player Status SM : "^Server_MatchInfo.PlayerStatus);
 		}
 	}
 	
@@ -315,21 +317,25 @@ foreach (Score in Scores) {
 }
 foreach (Player in Players) {
 	if(Player != Null){
-		Log::Log("Caster points : "^Player);
 		declare AccountId = Player.User.Login;
 		declare Score <=> Player.Score;
 		declare PlayerPoints = Scores::GetPlayerMatchPoints(Score);
 		declare Real PPNumerateur =  ML::ToReal(PlayerPoints*(Server_MatchInfo.NbOfRoundPlayers-1));
 		declare Real MPLDenominateur =  ML::ToReal(S_MaxPointLoss);
 		declare Real Pos = PPNumerateur/MPLDenominateur;
+		declare Real PPoints = ML::ToReal((S_PenalityPointforDNF * S_MaxPointLoss) / 100);
+		declare Integer PenalityPoints = ML::FloorInteger(PPoints);
 		//declare MinAlivePos = 
 		Server_MatchInfo.MinAlivePos[AccountId] = ML::CeilingInteger(Pos - 0.0005); //0.0005 is for the case where the ceiling is not accurate when Pos is an integer		
 		if(Server_MatchInfo.MinAlivePos[AccountId] == 1){
 			UIModules_BigMessage::SetOffset(<0., -40.>);
-			UIModules_BigMessage::SetMessage(Player, "Win the race to stay alive ", 1800);
+			UIModules_BigMessage::SetMessage(Player, "Win the race to stay alive ", 2500);
 		}else if(Server_MatchInfo.MinAlivePos[AccountId] < Server_MatchInfo.NbOfRoundPlayers){
 			UIModules_BigMessage::SetOffset(<0., -40.>);
-			UIModules_BigMessage::SetMessage(Player, "Be in the top "^Server_MatchInfo.MinAlivePos[AccountId]^" to stay alive", 1800);
+			UIModules_BigMessage::SetMessage(Player, "Be in the top "^Server_MatchInfo.MinAlivePos[AccountId]^" to stay alive", 2500);
+		}else if(PlayerPoints < S_MaxPointLoss + PenalityPoints){
+			UIModules_BigMessage::SetOffset(<0., -40.>);
+			UIModules_BigMessage::SetMessage(Player, "Finish the race to stay alive ", 2500);
 		}
 	}
 	
@@ -474,7 +480,6 @@ if (Round_ForceEndRound || Round_SkipPauseRound || Round_Skipped) {
 				Scores::SetPlayerMatchPoints(Score, -S_MaxPointLoss - Server_MatchInfo.PlayerRanks[AccountId]);
 			}else if(Server_MatchInfo.PlayerStatus[AccountId] == -1){ //set casters to last in table score
 				Scores::SetPlayerMatchPoints(Score, -S_MaxPointLoss - Server_MatchInfo.ParticipantsNb - 1);
-				Log::Log("Caster points : "^Scores::GetPlayerMatchPoints(Score));
 			}
 		//declare Integer PlayerPoint = Scores::GetPlayerMatchPoints(Player.Score);		
 		}
@@ -514,7 +519,6 @@ Scores::SetPlayerWinner(Scores::GetBestPlayer(Scores::C_Sort_MatchPoints));
 
 
 Void SetPlayersState(K_MatchInfo Server_MatchInfo){
-	Log::Log("SetPlayerStateFunc");
 	foreach (Score in Scores) {
 		if (Score != Null) {
 		declare AccountId = Score.User.Login; // Login
@@ -637,7 +641,6 @@ Void ComputeScores() {
  *													False Otherwise
  */
  Boolean PlayerIsAlive(Text _AccountId) {
-	Log::Log("PlayerIsAliveFunc");
 	if (_AccountId == "") return False;
 	declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
 	return (
@@ -648,7 +651,6 @@ Void ComputeScores() {
 
 //Check if the player is KO and change its name in consequence same for the winner 
 Void UpdateNameDisplay(){
-	Log::Log("UpdateNameDisplayFunc");
 	declare Text[][Text] CustomPoints = []; 
 	declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
 	foreach (Score in Scores) {
@@ -694,7 +696,6 @@ Void UpdateNameDisplay(){
 
  */
 Boolean MatchIsOver() {
-	Log::Log("MatchIsOverFunc");
 		declare Integer I = 0;
 		declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
 		declare Text WinnerLogin;
