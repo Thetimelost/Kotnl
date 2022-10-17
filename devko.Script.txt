@@ -13,9 +13,7 @@
 #Include "TextLib" as TL
 #Include "MathLib" as ML
 #Include "Libs/Nadeo/CommonLibs/Common/Semver.Script.txt" as Semver
-#Include "Libs/Nadeo/ModeLibs/Common/Utils.Script.txt" as ModeUtils
 #Include "Libs/Nadeo/TMNext/TrackMania/Menu/Constants.Script.txt" as MenuConsts
-#Include "ManiaApps/Nadeo/TMNext/TrackMania/Knockout/UIModules/KnockoutInfo_Server.Script.txt" as UIModules_KnockoutInfo
 #Include "Libs/Nadeo/TMNext/TrackMania/Modes/Rounds/StateManager.Script.txt" as StateMgr
 #Include "ManiaApps/Nadeo/TMxSM/Race/UIModules/ScoresTable_Server.Script.txt" as UIModules_ScoresTable
 #Include "ManiaApps/Nadeo/TMxSM/Race/UIModules/Checkpoint_Server.Script.txt" as UIModules_Checkpoint
@@ -26,9 +24,9 @@
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 #Setting S_ScriptEnvironment "test" //Active the developement environement
 
-#Setting S_StartPoint 100 as _("Start Point") // Number of  point at the start of the game for each players
-#Setting S_MaxPointLoss 50 as _("Max Point Loss") // Max number of point that a player can lose in a round
-#Setting S_PenalityPointforDNF 10 as _("Penality Point DNF") //Penality point for the guys who DNF
+#Setting S_StartPoint 500 as _("Start Point") // Number of  point at the start of the game for each players
+#Setting S_MaxPointLoss 100 as _("Max Point Loss") // Max number of point that a player can lose in a round
+#Setting S_PenalityPointforDNF 20 as _("Penality Point DNF") //Penality point for the guys who DNF
 
 
 #Setting S_DebugLosePointAtFirst False as _("Debug Lose Point When First") 
@@ -36,9 +34,6 @@
 
 #Setting S_PointsLimit 50 as _("Points limit")
 #Setting S_FinishTimeout -1 as _("Finish timeout")
-#Setting S_RoundsPerMap -1 as _("Number of rounds per map") ///< Number of round to play on one map before going to the next one
-#Setting S_MapsPerMatch -1 as _("Number of maps per match") ///< Number of maps to play before finishing the match
-#Setting S_UseTieBreak True as _("Use tie-break")	///< Continue to play the map until the tie is broken
 #Setting S_WarmUpNb 0	as _("Number of warm up")
 #Setting S_WarmUpDuration 0 as _("Duration of one warm up")
 #Setting S_WarmUpTimeout -1 as _("Warm up timeout")
@@ -47,17 +42,13 @@
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 // Constants
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-#Const C_ModeName "Rounds"
+#Const C_ModeName "ReverseKO"
 //L16N [Rounds] Description of the mode rules
 #Const Description _("$zIn $<$t$6F9Rounds$z$z$> mode, the goal is to win a maximum number of $<$t$6F9points.\n\n$z$>The rounds mode consists of $<$t$6F9a series of races$z$>.\nWhen you finish a race in a good $<$t$6F9position$z$>, you get $<$t$6F9points$z$>, added to your total.\n\nThe $<$t$6F9winner$z$> is the first player whose total reaches the $<$t$6F9point limit$z$> (30 for example).")
 
 #Const C_HudModulePath "" //< Path to the hud module
 #Const C_ManiaAppUrl "file://Media/ManiaApps/Nadeo/TMNext/TrackMania/Rounds/Rounds.Script.txt" //< Url of the mania app
 #Const C_FakeUsersNb 0
-
-#Const C_PointsLimit_NotReached 0
-#Const C_PointsLimit_Reached 1
-#Const C_PointsLimit_Tie 2
 
 #Const C_UploadRecord True
 #Const C_DisplayRecordGhost False
@@ -66,7 +57,6 @@
 #Const C_CelebrateRecordMedal True
 
 #Struct K_MatchInfo {
-	Boolean RegistrationClosed; // Terminer le processus d'inscription
 	Integer[Text] PlayerStatus; // from -1 non player / spec, 0 eliminated player, 1 means still alive, 2 is the winner
 	Integer[Text] PlayerRanks; //define the ranks of players by 1 to Players Nbr
 	Integer[Text] MinAlivePos; //define the minimum pos before ko for each player at each round.
@@ -79,17 +69,6 @@
 	Integer NbOfRoundPlayers;
 	Boolean RoundLegal; //Check if all player dnf in the same rounds
 }
-
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-// Extends
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-// ***Match_LogVersions***
-// ***
-// Log::RegisterScript(ScriptName, Version);
-// Log::RegisterScript(Semver::ScriptName, Semver::Version);
-// Log::RegisterScript(ModeUtils::ScriptName, ModeUtils::Version);
-// Log::RegisterScript(StateMgr::ScriptName, StateMgr::Version);
-// ***
 
 ***Match_LoadLibraries***
 ***
@@ -169,14 +148,10 @@ foreach (Event in PendingEvents) {
 					if(Server_MatchInfo.FirstRoundOver){
 						Server_MatchInfo.PlayerStatus[AccountId] = 0;
 						ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
-						Log::Log("PlayerStatus "^Server_MatchInfo.PlayerStatus[AccountId]);
 						
 					}else{
 						if(!Server_MatchInfo.PlayerStatus.existskey(AccountId)){
 							Server_MatchInfo.PlayerStatus[AccountId] = 1;
-							Log::Log("PlayerStatus "^Server_MatchInfo.PlayerStatus[AccountId]);
-							Log::Log("AccountID"^AccountId);
-							Log::Log("WebService"^Event.Player.User.WebServicesUserId);
 						}	
 					Scores::SetPlayerMatchPoints(Event.Player.Score, S_StartPoint); 
 					}
@@ -202,23 +177,10 @@ foreach (Event in PendingEvents) {
 StateMgr::Yield();
 ***
 
-***Match_InitServer***
-***
-Log::Log("InitServer");
-declare Integer Server_PointsLimit;
-declare Integer Server_RoundsPerMap;
-declare Integer Server_MapsPerMatch;
-***
+
 
 ***Match_StartServer***
 ***
-Log::Log("StartServer");
-// Layers::Create("MyOwnUI", """
-// <manialink version="3">
-// <label pos="-160 0" z-index="0" text="Waaah cé bo" />
-// </manialink>
-// """);
-Layers::Attach("MyOwnUI");
 // Initialize mode
 Clans::SetClansNb(0);
 Scores::SaveInScore(Scores::C_Points_Match);
@@ -237,20 +199,8 @@ Race::SetupRecord(
 	C_CelebrateRecordMedal
 );
 Race::UseAutomaticDossardColor(False);
-Server_PointsLimit = S_PointsLimit - 1;
-Server_RoundsPerMap = S_RoundsPerMap - 1;
-Server_MapsPerMatch = S_MapsPerMatch - 1;
 ***
 
-***Match_InitMap***
-***
-Log::Log("InitMap");
-declare Integer Map_ValidRoundsNb;
-declare Boolean Map_Skipped;
-
-
-//UpdateScoresTableFooter(S_PointsLimit, S_RoundsPerMap, S_MapsPerMatch, Map_ValidRoundsNb);
-***
 
 ***Match_StartMap***
 ***
@@ -262,9 +212,8 @@ Scores::EnablePlayerNegativePoints(True,True,True);
 foreach (Score in Scores) {
 	
 	if (Score != Null) {	
-	declare AccountId = Score.User.Login; //test login instead of id
+	declare AccountId = Score.User.Login; 
 	if(!Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){
-		//declare AccountId = Score.User.WebServicesUserId;	
 		Server_MatchInfo.PlayerIsOnServer.add(AccountId); //Initialize the list of present player on the server
 	}
 	if(Server_MatchInfo.CastersLogins.exists(AccountId)){
@@ -289,7 +238,6 @@ UpdateNameDisplay();
 
 SetPlayersState(Server_MatchInfo); //Execute
 ///INITIALIZE
-Server_MatchInfo.RegistrationClosed = False; //TBD
 Server_MatchInfo.FirstRoundOver = False;
 Server_MatchInfo.ParticipantsNb = 0; 
 Server_MatchInfo.KOPlayersNb = 0;
@@ -298,7 +246,6 @@ Server_MatchInfo.KOPlayersNb = 0;
 // // Add bot when necessary
 //Users_SetNbFakeUsers(C_FakeUsersNb, 10);
 
-Map_Skipped = True;
 CarRank::Reset();
 
 // Warm up
@@ -309,7 +256,6 @@ MB_WarmUp(S_WarmUpNb, S_WarmUpDuration * 1000, S_WarmUpTimeout * 1000);
 ***Match_StartRound***
 ***
 Log::Log("StartRound");
-//UpdateScoresTableFooter(S_PointsLimit, S_RoundsPerMap, S_MapsPerMatch, Map_ValidRoundsNb);
 declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
 Server_MatchInfo.NbOfRoundPlayers = 0;
 Server_MatchInfo.RoundLegal = False;
@@ -382,7 +328,6 @@ foreach (Event in RacePendingEvents) {
 			if (Event.IsEndLap) {
 				Scores::UpdatePlayerBestLapIfBetter(Event.Player);
 			}
-			//Race::SortScores(Race::C_Sort_BestRaceCheckpointsProgress);
 			
 			declare pos = 1;			
 			Race::SortScores(Race::C_Sort_BestRaceCheckpointsProgress);
@@ -419,18 +364,6 @@ foreach (Event in PendingEvents) {
 	Events::Invalid(Event);
 }
 
-// // Server info change
-// if (
-// 	Server_PointsLimit != S_PointsLimit ||
-// 	Server_RoundsPerMap != S_RoundsPerMap ||
-// 	Server_MapsPerMatch != S_MapsPerMatch
-// ) {
-// 	Server_PointsLimit = S_PointsLimit;
-// 	Server_RoundsPerMap = S_RoundsPerMap;
-// 	Server_MapsPerMatch = S_MapsPerMatch;
-	
-// 	UpdateScoresTableFooter(S_PointsLimit, S_RoundsPerMap, S_MapsPerMatch, Map_ValidRoundsNb);
-// }
 ***
 
 ***Match_EndRound***
@@ -471,7 +404,6 @@ if (Round_ForceEndRound || Round_SkipPauseRound || Round_Skipped || !Server_Matc
 		
 	}
 
-	Map_ValidRoundsNb += 1;
 	// Get the last round points
 	ComputeLatestRaceScores();
 	Race::SortScores(Race::C_Sort_TotalPoints);
@@ -488,8 +420,7 @@ if (Round_ForceEndRound || Round_SkipPauseRound || Round_Skipped || !Server_Matc
 		
 		
 		if (Score != Null) {
-	 		declare Integer PlayerPoint = Scores::GetPlayerMatchPoints(Score);
-			//declare AccountId = Player.Score.User.WebServicesUserId; 
+	 		declare Integer PlayerPoint = Scores::GetPlayerMatchPoints(Score); 
 			declare AccountId = Score.User.Login; 
 			if(S_DebugLosePointAtFirst){
 				if(PlayerPoint >= 0)
@@ -506,8 +437,7 @@ if (Round_ForceEndRound || Round_SkipPauseRound || Round_Skipped || !Server_Matc
 				Scores::SetPlayerMatchPoints(Score, -S_MaxPointLoss - Server_MatchInfo.PlayerRanks[AccountId]);
 			}else if(Server_MatchInfo.PlayerStatus[AccountId] == -1){ //set casters to last in table score
 				Scores::SetPlayerMatchPoints(Score, -S_MaxPointLoss - Server_MatchInfo.ParticipantsNb - 1);
-			}
-		//declare Integer PlayerPoint = Scores::GetPlayerMatchPoints(Player.Score);		
+			}	
 		}
 	}
 	
@@ -535,7 +465,6 @@ foreach (Score in Scores) {
 }
 SetPlayersState(Server_MatchInfo);
 MB_StopMatch();
-//SetPlayersState(Server_MatchInfo);
 if (!MB_MapIsRunning() && MB_MatchIsRunning()) MB_SkipPodiumSequence();
 
 Race::SortScores(Race::C_Sort_TotalPoints);
@@ -544,11 +473,18 @@ Scores::SetPlayerWinner(Scores::GetBestPlayer(Scores::C_Sort_MatchPoints));
 
 
 
+
+
+// // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+// // Functions
+// // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+// // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+
+
 Void SetPlayersState(K_MatchInfo Server_MatchInfo){
 	foreach (Score in Scores) {
 		if (Score != Null) {
 		declare AccountId = Score.User.Login; // Login
-		//declare AccountId = Score.User.WebServicesUserId; // ID
 		declare Integer PlayerStatus = Server_MatchInfo.PlayerStatus[AccountId]; //Get player status
 		declare DoExist = Server_MatchInfo.PlayerIsOnServer.exists(AccountId); //Check if the player is in game
 		if(Score.User != Null && PlayerStatus <= 0 && DoExist){
@@ -559,48 +495,6 @@ Void SetPlayersState(K_MatchInfo Server_MatchInfo){
 		}
 	}
 }
-
-
-// // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-// // Functions
-// // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-// // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-// /** Update the scores table footer text
-//  *
-//  *	@param	_PointsLimit							The points limit
-//  *	@param	_RoundsPerMap							The number of rounds per map
-//  *	@param	_MapsPerMatch							The number of maps per match
-//  *	@param	_ValidRoundsNb						Number of valid rounds played
-//  */
-// Void UpdateScoresTableFooter(Integer _PointsLimit, Integer _RoundsPerMap, Integer _MapsPerMatch, Integer _ValidRoundsNb) {
-// 	declare Text[] Parts;
-// 	declare Text Message = "";
-// 	// if (_PointsLimit > 0) {
-// 	// 	if (Parts.count > 0) Message ^= "\n";
-// 	// 	Message ^= """%{{{Parts.count + 1}}}{{{_PointsLimit}}}""";
-// 	// 	//L16N [Rounds] Number of points to reach to win the match.
-// 	// 	Parts.add(_("Points limit : "));
-// 	// }
-// 	if (_RoundsPerMap > 0) {
-// 		if (Parts.count > 0) Message ^= "\n";
-// 		Message ^= """%{{{Parts.count + 1}}}{{{ML::Min(_ValidRoundsNb+1, _RoundsPerMap)}}}/{{{_RoundsPerMap}}}""";
-// 		//L16N [Rounds] Number of rounds played during the map.
-// 		Parts.add(_("Rounds : "));
-// 	}
-// 	if (_MapsPerMatch > 0) {
-// 		if (Parts.count > 0) Message ^= "\n";
-// 		Message ^= """%{{{Parts.count + 1}}}{{{MB_GetMapCount()}}}/{{{_MapsPerMatch}}}""";
-// 		//L16N [Rounds] Number of maps played during the match.
-// 		Parts.add(_("Maps : "));
-// 	}
-	
-// 	switch (Parts.count) {
-// 		case 0: UIModules_ScoresTable::SetFooterInfo(Message);
-// 		case 1: UIModules_ScoresTable::SetFooterInfo(TL::Compose(Message, Parts[0]));
-// 		case 2: UIModules_ScoresTable::SetFooterInfo(TL::Compose(Message, Parts[0], Parts[1]));
-// 		case 3: UIModules_ScoresTable::SetFooterInfo(TL::Compose(Message, Parts[0], Parts[1], Parts[2]));
-// 	}
-// }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 /** Get the time left to the players to finish the round after the first player
@@ -728,7 +622,6 @@ Boolean MatchIsOver() {
 		foreach (Score in Scores) {
 			if(Score != Null)
 				{
-				//declare AccountId = Player.Score.User.WebServicesUserId; 
 				declare AccountId = Score.User.Login; 
 				if(PlayerIsAlive(AccountId)){
 					WinnerLogin = AccountId;

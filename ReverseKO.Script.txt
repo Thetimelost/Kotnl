@@ -42,7 +42,7 @@
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 // Constants
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-#Const C_ModeName "ReverseKO"
+#Const C_ModeName "Rounds"
 //L16N [Rounds] Description of the mode rules
 #Const Description _("$zIn $<$t$6F9Rounds$z$z$> mode, the goal is to win a maximum number of $<$t$6F9points.\n\n$z$>The rounds mode consists of $<$t$6F9a series of races$z$>.\nWhen you finish a race in a good $<$t$6F9position$z$>, you get $<$t$6F9points$z$>, added to your total.\n\nThe $<$t$6F9winner$z$> is the first player whose total reaches the $<$t$6F9point limit$z$> (30 for example).")
 
@@ -177,10 +177,6 @@ foreach (Event in PendingEvents) {
 StateMgr::Yield();
 ***
 
-***Match_InitServer***
-***
-
-***
 
 ***Match_StartServer***
 ***
@@ -202,12 +198,6 @@ Race::SetupRecord(
 	C_CelebrateRecordMedal
 );
 Race::UseAutomaticDossardColor(False);
-***
-
-***Match_InitMap***
-***
-
-
 ***
 
 ***Match_StartMap***
