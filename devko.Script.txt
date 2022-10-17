@@ -77,6 +77,7 @@
 	Integer ParticipantsNb;
 	Integer KOPlayersNb;
 	Integer NbOfRoundPlayers;
+	Boolean RoundLegal; //Check if all player dnf in the same rounds
 }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
@@ -122,6 +123,8 @@ Server_MatchInfo.MinAlivePos.clear();
 Server_MatchInfo.CastersLogins.clear();
 Server_MatchInfo.FirstRoundOver = False;
 Server_MatchInfo.CastersLogins = ConvertCastersLogin(S_CastersLogins);
+Server_MatchInfo.RoundLegal = False;
+
 ***
 
 ***Match_LoadHud***
@@ -309,6 +312,7 @@ Log::Log("StartRound");
 //UpdateScoresTableFooter(S_PointsLimit, S_RoundsPerMap, S_MapsPerMatch, Map_ValidRoundsNb);
 declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
 Server_MatchInfo.NbOfRoundPlayers = 0;
+Server_MatchInfo.RoundLegal = False;
 foreach (Score in Scores) {
 	declare AccountId = Score.User.Login;
 	if(Server_MatchInfo.PlayerStatus[AccountId] == 1 && Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){
@@ -358,11 +362,13 @@ declare RacePendingEvents = Race::GetPendingEvents();
 foreach (Event in RacePendingEvents) {
 	Race::ValidEvent(Event);
 	// Waypoint
+	declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
 	if (Event.Type == Events::C_Type_Waypoint) {
 		CarRank::ThrottleUpdate(CarRank::C_SortCriteria_CurrentRace);
 		if (Event.Player != Null) {
 
 			if (Event.IsEndRace) {
+				Server_MatchInfo.RoundLegal = True;
 				Scores::UpdatePlayerBestRaceIfBetter(Event.Player);
 				Scores::UpdatePlayerBestLapIfBetter(Event.Player);
 				Scores::UpdatePlayerPrevRace(Event.Player);
@@ -377,26 +383,28 @@ foreach (Event in RacePendingEvents) {
 				Scores::UpdatePlayerBestLapIfBetter(Event.Player);
 			}
 			//Race::SortScores(Race::C_Sort_BestRaceCheckpointsProgress);
-			declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
+			
 			declare pos = 1;			
 			Race::SortScores(Race::C_Sort_BestRaceCheckpointsProgress);
-			foreach(Score in Scores){
-				if(Score != Null){
-					declare AccountId = Score.User.Login;
-					Log::Log("accountid "^AccountId);
-					if(Server_MatchInfo.PlayerStatus[AccountId] == 1){
-						declare Playerfs <=> GetPlayer(Score.User.Login);
-						if(pos > Server_MatchInfo.MinAlivePos[AccountId]){
-							Log::Log("if "^pos);
-							Playerfs.Dossard_Color = <0.7, 0., 0.>;
-						}else{
-							Log::Log("else "^pos);
-							Playerfs.Dossard_Color = Race::C_DossardColor_Default;						
-						}
-						pos += 1;
-					}					
-				}				
-			}
+			//TO DO 
+			//CHANGE THE COLOR OF THE DOSSARD
+			// foreach(Score in Scores){
+			// 	if(Score != Null){
+			// 		declare AccountId = Score.User.Login;
+			// 		Log::Log("accountid "^AccountId);
+			// 		if(Server_MatchInfo.PlayerStatus[AccountId] == 1){
+			// 			declare Playerfs <=> GetPlayer(Score.User.Login);
+			// 			if(pos > Server_MatchInfo.MinAlivePos[AccountId]){
+			// 				Log::Log("if "^pos);
+			// 				Playerfs.Dossard_Color = <0.7, 0., 0.>;
+			// 			}else{
+			// 				Log::Log("else "^pos);
+			// 				Playerfs.Dossard_Color = Race::C_DossardColor_Default;						
+			// 			}
+			// 			pos += 1;
+			// 		}					
+			// 	}				
+			// }
 		}	
 
 	}
@@ -436,7 +444,7 @@ CarRank::Update(CarRank::C_SortCriteria_CurrentRace);
 if (Semver::Compare(XmlRpc::GetApiVersion(), ">=", "2.1.1")) {
 	Scores::XmlRpc_SendScores(Scores::C_Section_PreEndRound, "");
 }
-if (Round_ForceEndRound || Round_SkipPauseRound || Round_Skipped) {
+if (Round_ForceEndRound || Round_SkipPauseRound || Round_Skipped || !Server_MatchInfo.RoundLegal) {
 	// Cancel points
 	foreach (Score in Scores) {
 		if(Score != Null){
