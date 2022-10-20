@@ -92,7 +92,7 @@ ModeInfo::SetType(ModeInfo::C_Type_FreeForAll);
 ModeInfo::SetRules(Description);
 ModeInfo::SetStatusMessage("");
 
-declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
+declare K_MatchInfo Server_MatchInfo = K_MatchInfo {};
 ///CLEAR
 Server_MatchInfo.PlayerIsOnServer.clear();
 Server_MatchInfo.PlayerStatus.clear();
@@ -147,11 +147,16 @@ foreach (Event in PendingEvents) {
 				if(Event.Player != Null && !Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)){ 
 					if(Server_MatchInfo.FirstRoundOver){
 						Server_MatchInfo.PlayerStatus[AccountId] = 0;
+						Log::Log("First Round Over " ^ AccountId);
 						ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
 						
 					}else{
-						if(!Server_MatchInfo.PlayerStatus.existskey(AccountId)){
+						if(!Server_MatchInfo.PlayerStatus.existskey(AccountId)){							
 							Server_MatchInfo.PlayerStatus[AccountId] = 1;
+							Server_MatchInfo.MinAlivePos[AccountId] = 0;
+							declare Text FirstAccountId = Server_MatchInfo.PlayerStatus.keyof(1); 
+							Server_MatchInfo.MinAlivePos[AccountId] = Server_MatchInfo.MinAlivePos[FirstAccountId];
+							Log::Log("First Round " ^ AccountId);
 						}	
 					Scores::SetPlayerMatchPoints(Event.Player.Score, S_StartPoint); 
 					}
@@ -261,7 +266,7 @@ Server_MatchInfo.NbOfRoundPlayers = 0;
 Server_MatchInfo.RoundLegal = False;
 foreach (Score in Scores) {
 	declare AccountId = Score.User.Login;
-	if(Server_MatchInfo.PlayerStatus[AccountId] == 1 && Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){
+	if(Server_MatchInfo.PlayerStatus.existskey(AccountId) && Server_MatchInfo.PlayerStatus[AccountId] == 1 && Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){
 		Server_MatchInfo.NbOfRoundPlayers += 1;
 	}
 }
@@ -287,6 +292,7 @@ foreach (Player in Players) {
 			UIModules_BigMessage::SetOffset(<0., -40.>);
 			UIModules_BigMessage::SetMessage(Player, "Finish the race to stay alive ", 2500);
 		}
+		Player.Dossard_Color = Race::C_DossardColor_Default;
 	}
 	
 }
@@ -312,7 +318,7 @@ foreach (Event in RacePendingEvents) {
 	if (Event.Type == Events::C_Type_Waypoint) {
 		CarRank::ThrottleUpdate(CarRank::C_SortCriteria_CurrentRace);
 		if (Event.Player != Null) {
-
+			UpdateLiveRanking();
 			if (Event.IsEndRace) {
 				Server_MatchInfo.RoundLegal = True;
 				Scores::UpdatePlayerBestRaceIfBetter(Event.Player);
@@ -328,28 +334,9 @@ foreach (Event in RacePendingEvents) {
 			if (Event.IsEndLap) {
 				Scores::UpdatePlayerBestLapIfBetter(Event.Player);
 			}
-			
-			declare pos = 1;			
+						
 			Race::SortScores(Race::C_Sort_BestRaceCheckpointsProgress);
-			//TO DO 
-			//CHANGE THE COLOR OF THE DOSSARD
-			// foreach(Score in Scores){
-			// 	if(Score != Null){
-			// 		declare AccountId = Score.User.Login;
-			// 		Log::Log("accountid "^AccountId);
-			// 		if(Server_MatchInfo.PlayerStatus[AccountId] == 1){
-			// 			declare Playerfs <=> GetPlayer(Score.User.Login);
-			// 			if(pos > Server_MatchInfo.MinAlivePos[AccountId]){
-			// 				Log::Log("if "^pos);
-			// 				Playerfs.Dossard_Color = <0.7, 0., 0.>;
-			// 			}else{
-			// 				Log::Log("else "^pos);
-			// 				Playerfs.Dossard_Color = Race::C_DossardColor_Default;						
-			// 			}
-			// 			pos += 1;
-			// 		}					
-			// 	}				
-			// }
+			
 		}	
 
 	}
@@ -530,7 +517,8 @@ Void ComputeLatestRaceScores() { //Soustract the players points
 	declare Integer PenalityPoints = ML::FloorInteger(PPoints);
     foreach (Score in Scores) {
 		declare AccountId = Score.User.Login;
-		if(Score != Null && Server_MatchInfo.PlayerStatus[AccountId] == 1){
+		Log::Log("CéPété " ^ AccountId);
+		if(Score != Null && Server_MatchInfo.PlayerStatus.existskey(AccountId) && Server_MatchInfo.PlayerStatus[AccountId] == 1){
 			if(Server_MatchInfo.NbOfRoundPlayers > 1) { //Development if, only because when you are alone it crash. divided by zero.
 				if (Scores::GetPlayerPrevRaceTime(Score) > 0) {
 					declare Real Points = ML::ToReal(I *S_MaxPointLoss/(Server_MatchInfo.NbOfRoundPlayers - 1));		
@@ -609,6 +597,59 @@ Void UpdateNameDisplay(){
 	
 	return CastersLogins;
 }
+
+Void ChangeDossardColor(Integer Rank, CSmPlayer player)
+{
+	//CHANGE THE COLOR OF THE DOSSARD
+	declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
+	declare AccountId = player.User.Login;	
+		if(Rank > Server_MatchInfo.MinAlivePos[AccountId]){
+			Log::Log("if "^Rank);
+			player.Dossard_Color = <0.7, 0., 0.>;
+		}else{
+			Log::Log("else "^Rank);
+			player.Dossard_Color = Race::C_DossardColor_Default;						
+		}					
+					
+}				
+			
+
+
+Void UpdateLiveRanking(){
+	Log::Log("UpdateLiveRanking");
+	declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
+	declare Integer[CSmPlayer][Integer] Ranking;
+	
+	foreach (Player in Players) {
+		declare AccountId = Player.User.Login;	
+		if(Server_MatchInfo.PlayerStatus[AccountId] == 1){
+			if (!Ranking.existskey(Player.RaceWaypointTimes.count)) {
+				Ranking[Player.RaceWaypointTimes.count] = [];
+			}
+			if (Player.RaceWaypointTimes.count > 0) {
+				Ranking[Player.RaceWaypointTimes.count][Player] = Player.RaceWaypointTimes[Player.RaceWaypointTimes.count - 1];
+			} else {
+				Ranking[Player.RaceWaypointTimes.count][Player] = 0;
+			}
+		}	
+	}
+	Ranking = Ranking.sortkeyreverse();
+	declare Integer Rank = 1;
+	foreach (CheckpointsNb => CheckpointRanking in Ranking) {
+		declare Integer[CSmPlayer] SortedCheckpointRanking = CheckpointRanking.sort();
+		foreach (Player => CheckpointTime in SortedCheckpointRanking) {
+			//SetRank(Player, Rank);
+			Log::Log("Rank : " ^ Rank ^ " Player : " ^ Player.User.Login);
+			ChangeDossardColor(Rank, Player);
+			if (CheckpointsNb > 0) {
+				Rank += 1;		
+			}
+			
+		}
+	}
+	//G_NewPlayerRank = Rank;
+}
+
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 /** Check if we should go to the next match
