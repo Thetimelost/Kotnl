@@ -67,7 +67,9 @@
 	Integer ParticipantsNb;
 	Integer KOPlayersNb;
 	Integer NbOfRoundPlayers;
+	Integer IndexWu;
 	Boolean RoundLegal; //Check if all player dnf in the same rounds
+	
 }
 
 ***Match_LoadLibraries***
@@ -92,7 +94,7 @@ ModeInfo::SetType(ModeInfo::C_Type_FreeForAll);
 ModeInfo::SetRules(Description);
 ModeInfo::SetStatusMessage("");
 
-declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
+declare K_MatchInfo Server_MatchInfo = K_MatchInfo {};
 ///CLEAR
 Server_MatchInfo.PlayerIsOnServer.clear();
 Server_MatchInfo.PlayerStatus.clear();
@@ -101,6 +103,7 @@ Server_MatchInfo.PlayerRanks.clear();
 Server_MatchInfo.MinAlivePos.clear();
 Server_MatchInfo.CastersLogins.clear();
 Server_MatchInfo.FirstRoundOver = False;
+Server_MatchInfo.IndexWu = 0;
 Server_MatchInfo.CastersLogins = ConvertCastersLogin(S_CastersLogins);
 Server_MatchInfo.RoundLegal = False;
 
@@ -152,6 +155,9 @@ foreach (Event in PendingEvents) {
 					}else{
 						if(!Server_MatchInfo.PlayerStatus.existskey(AccountId)){
 							Server_MatchInfo.PlayerStatus[AccountId] = 1;
+							Server_MatchInfo.MinAlivePos[AccountId] = 0;
+							declare Text FirstAccountId = Server_MatchInfo.PlayerStatus.keyof(1); 
+							Server_MatchInfo.MinAlivePos[AccountId] = Server_MatchInfo.MinAlivePos[FirstAccountId];
 						}	
 					Scores::SetPlayerMatchPoints(Event.Player.Score, S_StartPoint); 
 					}
@@ -259,7 +265,7 @@ Server_MatchInfo.NbOfRoundPlayers = 0;
 Server_MatchInfo.RoundLegal = False;
 foreach (Score in Scores) {
 	declare AccountId = Score.User.Login;
-	if(ChServMatchInfo(AccountId) && Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){
+	if(ChServMatchInfo(AccountId) && Server_MatchInfo.PlayerStatus[AccountId] == 1 && Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){
 		Server_MatchInfo.NbOfRoundPlayers += 1;
 	}
 }
@@ -424,11 +430,16 @@ if (Round_ForceEndRound || Round_SkipPauseRound || Round_Skipped || !Server_Matc
 				}
 			}
 			
+			if(!Server_MatchInfo.FirstRoundOver && Server_MatchInfo.IndexWu >= S_WarmUpNb){
+					Server_MatchInfo.FirstRoundOver = True;				
+			}
+			Server_MatchInfo.IndexWu += 1;
 	
 		}
 	}
 	
-	Server_MatchInfo.FirstRoundOver = True;
+
+	
 	UpdateNameDisplay();
 	MB_Sleep(3000);
 	UIManager.UIAll.ScoreTableVisibility = CUIConfig::EVisibility::Normal;
