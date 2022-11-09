@@ -24,7 +24,7 @@
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 #Setting S_ScriptEnvironment "test" //Active the developement environement
 
-#Setting S_StartPoint 500 as _("Start Point") // Number of  point at the start of the game for each players
+#Setting S_StartPoint 200 as _("Start Point") // Number of  point at the start of the game for each players
 #Setting S_MaxPointLoss 100 as _("Max Point Loss") // Max number of point that a player can lose in a round
 #Setting S_PenalityPointforDNF 20 as _("Penality Point DNF") //Penality point for the guys who DNF
 
@@ -85,6 +85,7 @@ StateMgr::Unload();
 ***Match_Settings***
 ***
 MB_Settings_UseDefaultHud = (C_HudModulePath == "");
+Rounds_Settings_CanSpawnDefault = False;
 ***
 
 ***Match_Rules***
@@ -94,14 +95,9 @@ ModeInfo::SetType(ModeInfo::C_Type_FreeForAll);
 ModeInfo::SetRules(Description);
 ModeInfo::SetStatusMessage("");
 
-declare K_MatchInfo Server_MatchInfo = K_MatchInfo {};
+declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
 ///CLEAR
-Server_MatchInfo.PlayerIsOnServer.clear();
-Server_MatchInfo.PlayerStatus.clear();
-Server_MatchInfo.CanDisPlayerPlay.clear();
-Server_MatchInfo.PlayerRanks.clear();
-Server_MatchInfo.MinAlivePos.clear();
-Server_MatchInfo.CastersLogins.clear();
+Server_MatchInfo = K_MatchInfo{};
 Server_MatchInfo.FirstRoundOver = False;
 Server_MatchInfo.IndexWu = 0;
 Server_MatchInfo.CastersLogins = ConvertCastersLogin(S_CastersLogins);
@@ -140,36 +136,55 @@ foreach (Event in PendingEvents) {
 			StateMgr::InitializePlayer(Event.Player);
 			CarRank::InitializePlayer(Event.Player);
 			declare Text AccountId = Event.Player.User.Login;
-			if(!Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){ //check if the player was already register
-				Server_MatchInfo.PlayerIsOnServer.add(AccountId);
-			}
-			if(Server_MatchInfo.CastersLogins.exists(AccountId)){ //check if the player is a caster
-				Server_MatchInfo.PlayerStatus[AccountId] = -1;
-				ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
-			}else{
-				if(Event.Player != Null && !Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)){ 
-					if(Server_MatchInfo.FirstRoundOver){
-						Server_MatchInfo.PlayerStatus[AccountId] = 0;
-						ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
+			declare ModeRounds_CanSpawn for Event.Player.Score = False;
+			// if(!Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){ //check if the player was already register
+			// 	Server_MatchInfo.PlayerIsOnServer.add(AccountId);
+			// }
+			// if(Server_MatchInfo.CastersLogins.exists(AccountId)){ //check if the player is a caster
+			// 	Server_MatchInfo.PlayerStatus[AccountId] = -1;
+			// 	ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
+			// }else{
+			// 	if(Event.Player != Null && !Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)){ 
+			// 		if(Server_MatchInfo.FirstRoundOver){
+			// 			Server_MatchInfo.PlayerStatus[AccountId] = 0;
+			// 			ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
 						
-					}else{
-						if(!Server_MatchInfo.PlayerStatus.existskey(AccountId)){
-							Server_MatchInfo.PlayerStatus[AccountId] = 1;
-							Server_MatchInfo.MinAlivePos[AccountId] = 0;
-							declare Text FirstAccountId = Server_MatchInfo.PlayerStatus.keyof(1); 
-							Server_MatchInfo.MinAlivePos[AccountId] = Server_MatchInfo.MinAlivePos[FirstAccountId];
-						}	
-					Scores::SetPlayerMatchPoints(Event.Player.Score, S_StartPoint); 
-					}
-				}			
-				if(Event.Player != Null && Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)){
-					Server_MatchInfo.CanDisPlayerPlay.removekey(AccountId);
-					if(Server_MatchInfo.PlayerStatus[AccountId] < 1){
-						ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
-					}
+			// 		}else{
+			// 			if(!Server_MatchInfo.PlayerStatus.existskey(AccountId)){
+			// 				Server_MatchInfo.PlayerStatus[AccountId] = 1;
+			// 				Server_MatchInfo.MinAlivePos[AccountId] = 0;
+			// 				declare Text FirstAccountId = Server_MatchInfo.PlayerStatus.keyof(1); 
+			// 				Server_MatchInfo.MinAlivePos[AccountId] = Server_MatchInfo.MinAlivePos[FirstAccountId];
+			// 			}	
+			// 		Scores::SetPlayerMatchPoints(Event.Player.Score, S_StartPoint); 
+			// 		}
+			// 	}			
+			// 	if(Event.Player != Null && Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)){
+			// 		Server_MatchInfo.CanDisPlayerPlay.removekey(AccountId);
+			// 		if(Server_MatchInfo.PlayerStatus[AccountId] < 1){
+			// 			ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
+			// 		}
+			// 	}
+			// }
+			if (Server_MatchInfo.CastersLogins.exists(AccountId)) {
+				Server_MatchInfo.PlayerStatus[AccountId] = -1;
+				Scores::SetPlayerMatchPoints(Event.Player.Score, 0);			
+				ModeRounds_CanSpawn = False;
+			}else if(!Server_MatchInfo.FirstRoundOver && AccountId != ""){
+				if(!Server_MatchInfo.PlayerIsOnServer.exists(AccountId)) Server_MatchInfo.PlayerIsOnServer.add(AccountId);
+				if(!Server_MatchInfo.PlayerStatus.existskey(AccountId)){
+					Server_MatchInfo.PlayerStatus[AccountId] = 1;
+					Server_MatchInfo.MinAlivePos[AccountId] = 0;
+					ModeRounds_CanSpawn = True;
 				}
+					Scores::SetPlayerMatchPoints(Event.Player.Score, S_StartPoint);
+			}else if(!Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)){
+				Server_MatchInfo.PlayerStatus[AccountId] = 0;
+				Scores::SetPlayerMatchPoints(Event.Player.Score, 0);			
+				ModeRounds_CanSpawn = False;						
 			}
-			
+			if(Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)) Server_MatchInfo.CanDisPlayerPlay.removekey(AccountId); //check
+			 
 		}
 		case CSmModeEvent::EType::OnPlayerRemoved:{
 			declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
@@ -213,28 +228,22 @@ declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
 Scores::EnablePlayerNegativePoints(True,True,True); 
 
 foreach (Score in Scores) {
-	
-	if (Score != Null) {	
-	declare AccountId = Score.User.Login; 
-		if(!Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){
-
-			Server_MatchInfo.PlayerIsOnServer.add(AccountId); //Initialize the list of present player on the server
-		}
+		
+	declare AccountId = Score.User.Login;
+	declare ModeRounds_CanSpawn for Score = False;
+	if(AccountId != ""){
+		if(!Server_MatchInfo.PlayerIsOnServer.exists(AccountId)) Server_MatchInfo.PlayerIsOnServer.add(AccountId);	//Initialize the list of present player on the server
 		if(Server_MatchInfo.CastersLogins.exists(AccountId)){
 			Server_MatchInfo.PlayerStatus[AccountId] = -1;
-			Scores::SetPlayerMatchPoints(Score, 0);
-			ServerAdmin.ForceSpectator(Score.User,CServerAdmin::ESpecMode::SpectatorForced);
+			Scores::SetPlayerMatchPoints(Score, 0);			
+			ModeRounds_CanSpawn = False;
 		}else{
-			if(!Server_MatchInfo.PlayerStatus.existskey(AccountId)){
-				Server_MatchInfo.PlayerStatus[AccountId] = 1; //Intinialize all people to player
-			}
+			Server_MatchInfo.PlayerStatus[AccountId] = 1; //Intinialize all people to player
+			ModeRounds_CanSpawn = True;
 		}
-		
+		Log::Log("Player2"^Server_MatchInfo.PlayerStatus);	
 		Scores::SetPlayerMatchPoints(Score, S_StartPoint); //Initialize the players point
-	
-	}
-
-	
+	} 
 	
 	
 }
@@ -301,6 +310,33 @@ foreach (Player in Players) {
 
 StateMgr::ForcePlayersStates([StateMgr::C_State_Playing]);
 
+***
+
+***Rounds_CanSpawn***
+***
+foreach (Score in Scores) {
+    declare ModeRounds_CanSpawn for Score = True;
+    ModeRounds_CanSpawn = CanSpawn(Score);
+}
+***
+
+***Rounds_CheckCanSpawn***
+***
+// During PlayLoop Check
+declare CSmScore Score <=> _Player.Score;
+declare ModeRounds_CanSpawn for Score = True;
+declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
+declare AccountId = Score.User.Login; 
+if(AccountId != "" && Server_MatchInfo.PlayerStatus.existskey(AccountId)){
+	if(Server_MatchInfo.PlayerStatus[AccountId] <= 0){
+		ModeRounds_CanSpawn = False;
+	}else{
+		ModeRounds_CanSpawn = True;
+	}
+	
+}
+
+// Your code. Return false to prevent spawning
 ***
 
 ***Rounds_PlayerSpawned***
@@ -425,9 +461,11 @@ if (Round_ForceEndRound || Round_SkipPauseRound || Round_Skipped || !Server_Matc
 					Server_MatchInfo.PlayerRanks[AccountId] = Server_MatchInfo.ParticipantsNb - Server_MatchInfo.KOPlayersNb;			
 					Server_MatchInfo.KOPlayersNb += 1;
 					Scores::SetPlayerMatchPoints(Score, -S_MaxPointLoss - Server_MatchInfo.PlayerRanks[AccountId]);
-				}else if(Server_MatchInfo.PlayerStatus[AccountId] == -1){ //set casters to last in table score
-					Scores::SetPlayerMatchPoints(Score, -S_MaxPointLoss - Server_MatchInfo.ParticipantsNb - 1);
-				}
+				}else{
+					if(Server_MatchInfo.PlayerStatus[AccountId] == -1){ //set casters to last in table score
+						Scores::SetPlayerMatchPoints(Score, -S_MaxPointLoss - Server_MatchInfo.ParticipantsNb - 1);
+					}
+				} 
 			}
 			
 			if(!Server_MatchInfo.FirstRoundOver && Server_MatchInfo.IndexWu >= S_WarmUpNb){
@@ -485,19 +523,24 @@ Boolean ChServMatchInfo(Text accountID)
 	return False;
 }
 
+Boolean CanSpawn(CSmScore _Score) {
+    declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
+	declare AccountId = _Score.User.Login; 
+	if(Server_MatchInfo.PlayerStatus[AccountId] <= 0){
+		return False;
+	}
+    return True;
+}
 
+//MODIFIER A MONTRER
 Void SetPlayersState(K_MatchInfo Server_MatchInfo){
 	foreach (Score in Scores) {
 		if (Score != Null) {
-		declare AccountId = Score.User.Login; // Login
-			if(ChServMatchInfo(AccountId)){
-				declare Integer PlayerStatus = Server_MatchInfo.PlayerStatus[AccountId]; //Get player status
-				declare DoExist = Server_MatchInfo.PlayerIsOnServer.exists(AccountId); //Check if the player is in game
-				if(Score.User != Null && PlayerStatus <= 0 && DoExist){
-					ServerAdmin.ForceSpectator(Score.User,CServerAdmin::ESpecMode::SpectatorForced);
-				}else if(Score.User != Null && PlayerStatus > 0 && DoExist){
-					ServerAdmin.ForceSpectator(Score.User,CServerAdmin::ESpecMode::PlayerSelectable);
-				}
+			declare AccountId = Score.User.Login; // Login
+			declare ModeRounds_CanSpawn for Score = True;
+			if(AccountId != "" && ChServMatchInfo(AccountId)){
+				ModeRounds_CanSpawn = CanSpawn(Score);
+
 			}
 		
 		}
