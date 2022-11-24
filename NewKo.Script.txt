@@ -24,7 +24,7 @@
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 #Setting S_ScriptEnvironment "test" //Active the developement environement
 
-#Setting S_StartPoint 200 as _("Start Point") // Number of  point at the start of the game for each players
+#Setting S_StartPoint 500 as _("Start Point") // Number of  point at the start of the game for each players
 #Setting S_MaxPointLoss 100 as _("Max Point Loss") // Max number of point that a player can lose in a round
 #Setting S_PenalityPointforDNF 20 as _("Penality Point DNF") //Penality point for the guys who DNF
 
@@ -137,35 +137,6 @@ foreach (Event in PendingEvents) {
 			CarRank::InitializePlayer(Event.Player);
 			declare Text AccountId = Event.Player.User.Login;
 			declare ModeRounds_CanSpawn for Event.Player.Score = False;
-			// if(!Server_MatchInfo.PlayerIsOnServer.exists(AccountId)){ //check if the player was already register
-			// 	Server_MatchInfo.PlayerIsOnServer.add(AccountId);
-			// }
-			// if(Server_MatchInfo.CastersLogins.exists(AccountId)){ //check if the player is a caster
-			// 	Server_MatchInfo.PlayerStatus[AccountId] = -1;
-			// 	ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
-			// }else{
-			// 	if(Event.Player != Null && !Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)){ 
-			// 		if(Server_MatchInfo.FirstRoundOver){
-			// 			Server_MatchInfo.PlayerStatus[AccountId] = 0;
-			// 			ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
-						
-			// 		}else{
-			// 			if(!Server_MatchInfo.PlayerStatus.existskey(AccountId)){
-			// 				Server_MatchInfo.PlayerStatus[AccountId] = 1;
-			// 				Server_MatchInfo.MinAlivePos[AccountId] = 0;
-			// 				declare Text FirstAccountId = Server_MatchInfo.PlayerStatus.keyof(1); 
-			// 				Server_MatchInfo.MinAlivePos[AccountId] = Server_MatchInfo.MinAlivePos[FirstAccountId];
-			// 			}	
-			// 		Scores::SetPlayerMatchPoints(Event.Player.Score, S_StartPoint); 
-			// 		}
-			// 	}			
-			// 	if(Event.Player != Null && Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)){
-			// 		Server_MatchInfo.CanDisPlayerPlay.removekey(AccountId);
-			// 		if(Server_MatchInfo.PlayerStatus[AccountId] < 1){
-			// 			ServerAdmin.ForceSpectator(Event.Player.User,CServerAdmin::ESpecMode::SpectatorForced);
-			// 		}
-			// 	}
-			// }
 			if (Server_MatchInfo.CastersLogins.exists(AccountId)) {
 				Server_MatchInfo.PlayerStatus[AccountId] = -1;
 				Scores::SetPlayerMatchPoints(Event.Player.Score, 0);			
@@ -174,7 +145,7 @@ foreach (Event in PendingEvents) {
 				if(!Server_MatchInfo.PlayerIsOnServer.exists(AccountId)) Server_MatchInfo.PlayerIsOnServer.add(AccountId);
 				if(!Server_MatchInfo.PlayerStatus.existskey(AccountId)){
 					Server_MatchInfo.PlayerStatus[AccountId] = 1;
-					Server_MatchInfo.MinAlivePos[AccountId] = 0;
+					Server_MatchInfo.MinAlivePos[AccountId] = 1000;
 					ModeRounds_CanSpawn = True;
 				}
 					Scores::SetPlayerMatchPoints(Event.Player.Score, S_StartPoint);
@@ -183,7 +154,11 @@ foreach (Event in PendingEvents) {
 				Scores::SetPlayerMatchPoints(Event.Player.Score, 0);			
 				ModeRounds_CanSpawn = False;						
 			}
-			if(Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)) Server_MatchInfo.CanDisPlayerPlay.removekey(AccountId); //check
+			if(Server_MatchInfo.CanDisPlayerPlay.existskey(AccountId)){
+				Server_MatchInfo.CanDisPlayerPlay.removekey(AccountId); //check
+				Server_MatchInfo.PlayerIsOnServer.add(AccountId);
+			} 
+			
 			 
 		}
 		case CSmModeEvent::EType::OnPlayerRemoved:{
@@ -239,6 +214,7 @@ foreach (Score in Scores) {
 			ModeRounds_CanSpawn = False;
 		}else{
 			Server_MatchInfo.PlayerStatus[AccountId] = 1; //Intinialize all people to player
+			Server_MatchInfo.MinAlivePos[AccountId] = 1000;
 			ModeRounds_CanSpawn = True;
 		}
 		Log::Log("Player2"^Server_MatchInfo.PlayerStatus);	
@@ -290,21 +266,21 @@ foreach (Player in Players) {
 			declare Real PPoints = ML::ToReal((S_PenalityPointforDNF * S_MaxPointLoss) / 100);
 			declare Integer PenalityPoints = ML::FloorInteger(PPoints);
 			//declare MinAlivePos = 
-			Server_MatchInfo.MinAlivePos[AccountId] = ML::CeilingInteger(Pos - 0.0005); //0.0005 is for the case where the ceiling is not accurate when Pos is an integer		
-			if(Server_MatchInfo.MinAlivePos[AccountId] == 1){
-				UIModules_BigMessage::SetOffset(<0., -40.>);
-				UIModules_BigMessage::SetMessage(Player, "Win the race to stay alive ", 2500);
-			}else if(Server_MatchInfo.MinAlivePos[AccountId] < Server_MatchInfo.NbOfRoundPlayers){
-				UIModules_BigMessage::SetOffset(<0., -40.>);
-				UIModules_BigMessage::SetMessage(Player, "Be in the top "^Server_MatchInfo.MinAlivePos[AccountId]^" to stay alive", 2500);
-			}else if(PlayerPoints < S_MaxPointLoss + PenalityPoints){
-				UIModules_BigMessage::SetOffset(<0., -40.>);
-				UIModules_BigMessage::SetMessage(Player, "Finish the race to stay alive ", 2500);
-			}
-		}
-		
-	}
-	
+			Server_MatchInfo.MinAlivePos[AccountId] = ML::CeilingInteger(Pos - 0.0005); //0.0005 is for the case where the ceiling is not accurate when Pos is an integer
+			if(Server_MatchInfo.PlayerStatus[AccountId] == 1){
+				if(Server_MatchInfo.MinAlivePos[AccountId] == 1){
+					UIModules_BigMessage::SetOffset(<0., -40.>);
+					UIModules_BigMessage::SetMessage(Player, "Win the race to stay alive ", 2500);
+				}else if(Server_MatchInfo.MinAlivePos[AccountId] < Server_MatchInfo.NbOfRoundPlayers){
+					UIModules_BigMessage::SetOffset(<0., -40.>);
+					UIModules_BigMessage::SetMessage(Player, "Be in the top "^Server_MatchInfo.MinAlivePos[AccountId]^" to stay alive", 2500);
+				}else if(PlayerPoints < S_MaxPointLoss + PenalityPoints){
+					UIModules_BigMessage::SetOffset(<0., -40.>);
+					UIModules_BigMessage::SetMessage(Player, "Finish the race to stay alive ", 2500);
+				}
+			}				
+		}		
+	}	
 }
 
 
@@ -538,9 +514,8 @@ Void SetPlayersState(K_MatchInfo Server_MatchInfo){
 		if (Score != Null) {
 			declare AccountId = Score.User.Login; // Login
 			declare ModeRounds_CanSpawn for Score = True;
-			if(AccountId != "" && ChServMatchInfo(AccountId)){
+			if(ChServMatchInfo(AccountId)){
 				ModeRounds_CanSpawn = CanSpawn(Score);
-
 			}
 		
 		}
@@ -613,12 +588,9 @@ Void ComputeScores() {
  *													False Otherwise
  */
  Boolean PlayerIsAlive(Text _AccountId) {
-	if (_AccountId == "") return False;
+	if (!ChServMatchInfo(_AccountId)) return False;
 	declare K_MatchInfo Server_MatchInfo for This = K_MatchInfo {};
-	return (
-		//True
-		Server_MatchInfo.PlayerStatus[_AccountId] == 1
-	);
+	return (Server_MatchInfo.PlayerStatus[_AccountId] == 1);
 }
 
 //Check if the player is KO and change its name in consequence same for the winner 
